@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-16 · **Change:** minor (LR-PROF-CAMERACOLOR: dark photos keep their camera profile's colour) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-16 · **Change:** minor (LR-PROF-CAMERACOLOR: dark photos keep their camera profile's colour; pooled camera tone curves) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -69,6 +69,7 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 
 | Id | Feature | Tier | Status | Evidence | Missing / notes |
 |---|---|---|---|---|---|
+| 2026-10-16 | minor | LR-PROF-CAMERACOLOR: camera profiles carry a pooled tone curve that continues each photo's own past its JPEG's range; status unchanged (🟡) |
 | 2026-10-16 | minor | LR-PROF-CAMERACOLOR: a photo no look fits keeps its camera profile's colour instead of the neutral fallback; status unchanged (🟡) |
 | 2026-10-12 | minor | LR-IMP-FORMATS: Mamiya MEF decodes from sensor data and is imported (`vendor/mef.rs`) |
 | 2026-10-12 | minor | LR-IMP-FORMATS: Epson ERF decodes from sensor data (`vendor/erf.rs`), no longer preview-only |
