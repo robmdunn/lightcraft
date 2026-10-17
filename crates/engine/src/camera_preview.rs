@@ -38,7 +38,8 @@ use lightcraft_raw::{
 /// 11: a camera profile's pooled tone curve continues a photo's own past what its JPEG showed.
 /// 12: only a look with the profile's colour continues along its pooled tone curve.
 /// 13: continuing a photo's curve keeps it as it was where its JPEG taught it (`thinned_knots`).
-pub const LOOK_VERSION: u32 = 13;
+/// 14: the bundled NIKON D780, D750 and D90 profiles.
+pub const LOOK_VERSION: u32 = 14;
 
 #[derive(Clone, Debug)]
 pub(crate) struct CameraLook {
@@ -3018,6 +3019,11 @@ mod tests {
     #[test]
     fn corpus_z8_uses_the_bundled_profile() {
         corpus_uses_the_bundled_profile("nef-nikon-z8-lossless.nef", "NIKON Z 8");
+    }
+
+    #[test]
+    fn corpus_d780_uses_the_bundled_profile() {
+        corpus_uses_the_bundled_profile("nef-nikon-d780.nef", "NIKON D780");
     }
 
     /// A public D7500 NEF (skipped without the corpus): its look is fitted to its own JPEG and white
