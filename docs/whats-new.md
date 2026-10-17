@@ -1,5 +1,16 @@
 # What's new in LightCraft
 
+## 2026-10-16
+
+### Bright saturated colours stay saturated (process V3)
+- Colours brighter than the screen can show, such as a sunlit red flower or a red bag pushed up with Exposure,
+  now keep their colour: the brightest channel stops at white and the others keep their places, as in a camera
+  JPEG, and only colours far past white fade gradually to white, keeping some light and shade. Before, such colours
+  were moved toward grey until they fit, and bright reds turned pink. This is a new
+  rendering process (V3): new photos and Reset use it; photos you already edited keep their look until you
+  choose Photo ▸ Update to Current Process. Colours that are nearly white overall, such as a blown-out sky, still
+  go white.
+
 ## 2026-10-14
 
 ### Model downloads time out on a name that doesn't resolve
