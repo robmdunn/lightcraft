@@ -799,6 +799,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-16 | minor | LR-PROF-CAMERACOLOR: bundled Nikon D90 camera profile; status unchanged (🟡) |
 | 2026-10-16 | minor | LR-PROF-CAMERACOLOR: bundled Nikon D750 camera profile; status unchanged (🟡) |
 | 2026-10-16 | minor | LR-PROF-CAMERACOLOR: bundled Nikon D780 camera profile; status unchanged (🟡) |
 | 2026-10-16 | patch | LR-PROF-CAMERACOLOR: raw decoding keeps negative channels (noise near black) instead of clipping each at zero, which turned pushed shadows magenta; status unchanged (🟡) |
