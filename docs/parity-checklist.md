@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-16 · **Change:** patch (LR-PROF-CAMERACOLOR: raw decoding keeps negative channels) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-16 · **Change:** minor (LR-PROF-CAMERACOLOR: dark photos keep their camera profile's colour) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -69,6 +69,7 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 
 | Id | Feature | Tier | Status | Evidence | Missing / notes |
 |---|---|---|---|---|---|
+| 2026-10-16 | minor | LR-PROF-CAMERACOLOR: a photo no look fits keeps its camera profile's colour instead of the neutral fallback; status unchanged (🟡) |
 | 2026-10-12 | minor | LR-IMP-FORMATS: Mamiya MEF decodes from sensor data and is imported (`vendor/mef.rs`) |
 | 2026-10-12 | minor | LR-IMP-FORMATS: Epson ERF decodes from sensor data (`vendor/erf.rs`), no longer preview-only |
 | LR-IMP-ADD-DIALOG | Add photos/folders | P0 | ✅ | `cmd:file.addPhotos`, `cmd:library.importPreview`, `cmd:library.import` (`mode`, `album`, `albumName`, `preset`, `keywords`), `crates/ui-egui/src/import.rs` | review dialog (Import Photos): the scanned source (a scanned folder is not added to Local), candidate grid with thumbnails and checkboxes (duplicates by path/content marked and unchecked; with several file types, a toggle per type checks or unchecks all of its files, e.g. the raws without the JPEGs beside them, issue #344) filling a resizable window (issue #337), transfer mode (add in place / copy / move, each explained), album (existing/new), preset, keywords; the folder scan runs on a background thread, shown in the activity stack with ✕ to cancel (a NAS folder no longer freezes the window); the import itself (probing, sidecars, copying / moving files) runs on a worker thread and its batches join the library between frames, shown in the activity stack with ✕ to cancel; one undo step. Drag-and-drop goes through the same background import. File dialogs list the importable extensions (`lightcraft_engine::import::EXTENSIONS`) in any letter case on Linux, where GTK and the desktop portal match globs case-sensitively (`apps/lightcraft/src/dialog_filter.rs`, issue #342; 0.4.0 hid `.JPG` / `.NEF`, issue #705). The folder scan, Browse Folder, drag-and-drop and the sidecar lookup match extensions in any case (`crates/engine/src/tests_import.rs`) |
