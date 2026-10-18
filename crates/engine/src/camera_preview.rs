@@ -36,7 +36,8 @@ use lightcraft_raw::{
 /// 9: the bundled NIKON Z 8 and NIKON D5300 profiles.
 /// 10: a photo no look fits keeps its camera profile's colour instead of the neutral fallback.
 /// 11: a camera profile's pooled tone curve continues a photo's own past what its JPEG showed.
-pub const LOOK_VERSION: u32 = 11;
+/// 12: only a look with the profile's colour continues along its pooled tone curve.
+pub const LOOK_VERSION: u32 = 12;
 
 #[derive(Clone, Debug)]
 pub(crate) struct CameraLook {
@@ -273,6 +274,7 @@ pub(crate) fn fit_preview(raw: &RawImage, bytes: &[u8], transform: &CameraTransf
     let profile = raw.metadata.model.as_deref().and_then(crate::camera_profiles::get);
     let colour = profile.as_ref().and_then(|p| Some((p.matrix().mul(&transform.matrix.inverse()?), p.hue_sat.clone())));
     let pooled = profile.as_ref().and_then(|p| p.tone);
+    let profile_matrix = colour.as_ref().map(|c| c.0);
     let fitted = fit_look(&sensor, &reference, &clipped, colour.clone());
     let tone_only = |colour| {
         let unclipped = without_clipped(&sensor, &clipped);
@@ -280,10 +282,7 @@ pub(crate) fn fit_preview(raw: &RawImage, bytes: &[u8], transform: &CameraTransf
     };
     let Some(look) = with_profile_colour(fitted, colour, pooled, tone_only) else { return (None, black_and_white) };
     // the camera's own curve past what this photo's JPEG showed
-    let look = match pooled {
-        Some(pooled) => CameraLook { tone: extend_tone(&look.tone, &pooled), ..look },
-        None => look,
-    };
+    let look = with_pooled_tone(look, profile_matrix, pooled);
     // Sony's Dynamic Range Optimizer (on by default) brightens the camera JPEG's darker regions,
     // not the raw: keep the colour fitted to the JPEG, take the tone curve without DRO.
     let dro = lightcraft_raw::embedded_preview_dynamic_range_optimized(bytes) == Some(true);
@@ -299,6 +298,16 @@ pub(crate) fn fit_preview(raw: &RawImage, bytes: &[u8], transform: &CameraTransf
         );
     }
     (Some(look), black_and_white)
+}
+
+/// `look` with its tone curve continued along the camera profile's `pooled` one ([`extend_tone`]), when the look
+/// takes the profile's colour (`profile_matrix`). A look fitted with the photo's own matrix keeps its curve: the pooled
+/// one maps luminance through the profile's matrix, which that photo's colours don't go through.
+fn with_pooled_tone(look: CameraLook, profile_matrix: Option<Mat3>, pooled: Option<CameraTone>) -> CameraLook {
+    match (pooled, profile_matrix) {
+        (Some(pooled), Some(matrix)) if look.matrix == matrix => CameraLook { tone: extend_tone(&look.tone, &pooled), ..look },
+        _ => look,
+    }
 }
 
 /// `fitted`, the photo's own look, or when no look fits it (a black-and-white JPEG has no colour; a dark one too few
@@ -4169,6 +4178,20 @@ mod tests {
         for x in [0.002f32, 0.02, 0.1, 0.3] {
             assert!((tone.apply(x) - camera_curve(x)).abs() < 0.01 + 0.03 * camera_curve(x), "{x}: {} vs {}", tone.apply(x), camera_curve(x));
         }
+    }
+
+    #[test]
+    fn only_a_look_with_the_profiles_colour_continues_along_its_pooled_curve() {
+        let profile = Mat3([[1.2, -0.1, -0.1], [-0.1, 1.1, 0.0], [0.0, -0.2, 1.2]]);
+        let pooled = sampled(camera_curve, 0.0005, 0.9);
+        let dark = sampled(|x| 0.9 * camera_curve(x), 0.0005, 0.02);
+        let with = |matrix| CameraLook { matrix, tone: dark, hue_sat: None };
+        // the profile's colour: the curve goes on along the pooled one
+        assert_eq!(with_pooled_tone(with(profile), Some(profile), Some(pooled)).tone, extend_tone(&dark, &pooled));
+        // the photo's own matrix (the profile's colour rejected): its curve as fitted
+        assert_eq!(with_pooled_tone(with(Mat3::IDENTITY), Some(profile), Some(pooled)).tone, dark);
+        assert_eq!(with_pooled_tone(with(profile), None, Some(pooled)).tone, dark);
+        assert_eq!(with_pooled_tone(with(profile), Some(profile), None).tone, dark);
     }
 
     #[test]
