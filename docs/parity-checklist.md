@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-16 · **Change:** minor (LR-PROF-CAMERACOLOR: dark photos keep their camera profile's colour; pooled camera tone curves) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-18 · **Change:** patch (revision rows moved out of the Import table) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -69,10 +69,6 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 
 | Id | Feature | Tier | Status | Evidence | Missing / notes |
 |---|---|---|---|---|---|
-| 2026-10-16 | minor | LR-PROF-CAMERACOLOR: camera profiles carry a pooled tone curve that continues each photo's own past its JPEG's range; status unchanged (🟡) |
-| 2026-10-16 | minor | LR-PROF-CAMERACOLOR: a photo no look fits keeps its camera profile's colour instead of the neutral fallback; status unchanged (🟡) |
-| 2026-10-12 | minor | LR-IMP-FORMATS: Mamiya MEF decodes from sensor data and is imported (`vendor/mef.rs`) |
-| 2026-10-12 | minor | LR-IMP-FORMATS: Epson ERF decodes from sensor data (`vendor/erf.rs`), no longer preview-only |
 | LR-IMP-ADD-DIALOG | Add photos/folders | P0 | ✅ | `cmd:file.addPhotos`, `cmd:library.importPreview`, `cmd:library.import` (`mode`, `album`, `albumName`, `preset`, `keywords`), `crates/ui-egui/src/import.rs` | review dialog (Import Photos): the scanned source (a scanned folder is not added to Local), candidate grid with thumbnails and checkboxes (duplicates by path/content marked and unchecked; with several file types, a toggle per type checks or unchecks all of its files, e.g. the raws without the JPEGs beside them, issue #344) filling a resizable window (issue #337), transfer mode (add in place / copy / move, each explained), album (existing/new), preset, keywords; the folder scan runs on a background thread, shown in the activity stack with ✕ to cancel (a NAS folder no longer freezes the window); the import itself (probing, sidecars, copying / moving files) runs on a worker thread and its batches join the library between frames, shown in the activity stack with ✕ to cancel; one undo step. Drag-and-drop goes through the same background import. File dialogs list the importable extensions (`lightcraft_engine::import::EXTENSIONS`) in any letter case on Linux, where GTK and the desktop portal match globs case-sensitively (`apps/lightcraft/src/dialog_filter.rs`, issue #342; 0.4.0 hid `.JPG` / `.NEF`, issue #705). The folder scan, Browse Folder, drag-and-drop and the sidecar lookup match extensions in any case (`crates/engine/src/tests_import.rs`) |
 | LR-IMP-DRAGDROP | Drop files/folders to import | P0 | ✅ | `crates/ui-egui/src/lib.rs` (dropped files → `cmd:library.import`) | dropping onto a specific album not supported |
 | LR-IMP-DUPES | Skip duplicates by content | P1 | ✅ | `crates/engine/src/import.rs`, `crates/engine/src/tests_import.rs` | |
@@ -799,12 +795,17 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-18 | patch | Four revision rows (LR-PROF-CAMERACOLOR, LR-IMP-FORMATS) that had landed in the A. Import table moved here; no status changes |
 | 2026-10-14 | patch | LR-EXP-TYPE: opaque 8-bit PNG/TIFF/WebP use RGB; transparent exports retain alpha (#1670). Statuses and feature counts unchanged. |
 | 2026-10-15 | minor | LRC-PRINT-PAGE: Page Options (Page Numbers, Page Info, Crop Marks) on Single Image and Contact Sheet pages, in the Print dialog, `print.set` and templates; still 🟡 (no identity plate, watermark, photo info or Cut Guides) |
 | 2026-10-15 | minor | LR-IMP-FORMATS: Hasselblad 3FR and FFF show their uncompressed RGB preview (no JPEG in these files) in the grid and loupe until developed, and as the stand-in when a file fails to decode; status unchanged (🟡) |
 | 2026-10-15 | minor | LR-IMP-FORMATS: a Hasselblad FFF develops with the camera's colour matrix from the original 3FR header it embeds (tag `0xC51B`) instead of the neutral matrix; status unchanged (🟡) |
+| 2026-10-16 | minor | LR-PROF-CAMERACOLOR: a photo no look fits keeps its camera profile's colour instead of the neutral fallback; status unchanged (🟡) |
+| 2026-10-16 | minor | LR-PROF-CAMERACOLOR: camera profiles carry a pooled tone curve that continues each photo's own past its JPEG's range; status unchanged (🟡) |
 | 2026-10-16 | patch | LR-PROF-CAMERACOLOR: raw decoding keeps negative channels (noise near black) instead of clipping each at zero, which turned pushed shadows magenta; status unchanged (🟡) |
 | 2026-10-12 | minor | LR-EDIT-OPTICS-PROFILE: Sony ARW shading, CA and distortion tables decoded with settings and provenance (raw IFD, `SR2SubIFD` fallback); applied corrections unchanged (ILCE-7RM4A and ILCE-7RM6 distortion); status unchanged (🟡) |
+| 2026-10-12 | minor | LR-IMP-FORMATS: Mamiya MEF decodes from sensor data and is imported (`vendor/mef.rs`) |
+| 2026-10-12 | minor | LR-IMP-FORMATS: Epson ERF decodes from sensor data (`vendor/erf.rs`), no longer preview-only |
 | 2026-10-14 | minor | LR-IMP-CAMERA-COVERAGE: Camera-coverage sweep (#1327): 30 models verified on 40 CC0 files (coverage.py 515 → 545 verified); sensor verification does not establish colour parity (#1277); status unchanged (🟡) |
 | 2026-10-13 | minor | LR-MERGE-PANO: a panorama's DNG takes its `AsShotNeutral` from the median of its frames' vendor white-balance multipliers (CR2, NEF, ARW…) instead of the first frame's tags, and frames now carry the multipliers (issue #1144); status unchanged (✅) |
 | 2026-10-13 | minor | LR-MERGE-HDR: an HDR merge's DNG takes its `AsShotNeutral` from the median of its inputs' vendor white-balance multipliers instead of the reference frame's tags (issue #1144); status unchanged (🟡) |
