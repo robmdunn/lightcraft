@@ -871,9 +871,10 @@ fn tone_sample(input: [f32; 3], output: [f32; 3]) -> bool {
 /// A camera profile's tone curve from the tone samples pooled over its photos, through the profile's `matrix`: one
 /// curve for the camera, from shadows that only dark photos show to highlights that only bright ones show. Quantile
 /// matching ([`fit_tone`]) pools correctly because every photo went through the same camera curve (picture styles and
-/// Active D-Lighting aside, which it averages).
+/// Active D-Lighting aside, which it averages). Luminance is taken with negative channels kept, as the render feeds
+/// the curve (raw decoding keeps them, `files::CameraColourModel`).
 pub(crate) fn fit_profile_tone(samples: &[([f64; 3], f64)], matrix: &Mat3) -> Option<CameraTone> {
-    fit_tone(samples.iter().map(|(x, y)| (luma(matrix.apply(*x).map(|v| v.max(0.0))), *y)).filter(|(x, _)| *x > 0.0).collect())
+    fit_tone(samples.iter().map(|(x, y)| (luma(matrix.apply(*x)), *y)).filter(|(x, _)| *x > 0.0).collect())
 }
 
 /// `photo`'s tone curve where its JPEG taught it, `pooled`'s past that: from the photo's last knot it fades over
@@ -4148,6 +4149,26 @@ mod tests {
             assert!((tone.apply(x) - camera_curve(x)).abs() < 0.01 + 0.03 * camera_curve(x), "{x}: {} vs {}", tone.apply(x), camera_curve(x));
         }
         assert!(fit_profile_tone(&samples[..64], &matrix).is_none(), "too few samples");
+    }
+
+    #[test]
+    fn a_pooled_tone_curve_takes_luminance_with_negative_channels_as_the_render_does() {
+        // a saturating matrix sends this magenta's green channel negative; the render keeps it, so the curve's input
+        // is the unclamped luminance (clamped, the magenta samples read 30% brighter and pull the pooled quantiles)
+        let matrix = Mat3([[1.3, -0.2, -0.1], [-0.1, 1.2, -0.1], [-0.1, -0.5, 1.6]]);
+        let magenta = [0.9, 0.05, 0.9];
+        assert!(matrix.apply(magenta)[1] < 0.0);
+        let samples: Vec<([f64; 3], f64)> = (0..4000)
+            .map(|i| {
+                let colour = if i % 2 == 0 { magenta } else { [1.0; 3] };
+                let x = colour.map(|v| v * 0.001 * 500f64.powf(f64::from(i / 2) / 2000.0));
+                (x, f64::from(camera_curve(luma(matrix.apply(x)) as f32)))
+            })
+            .collect();
+        let tone = fit_profile_tone(&samples, &matrix).unwrap();
+        for x in [0.002f32, 0.02, 0.1, 0.3] {
+            assert!((tone.apply(x) - camera_curve(x)).abs() < 0.01 + 0.03 * camera_curve(x), "{x}: {} vs {}", tone.apply(x), camera_curve(x));
+        }
     }
 
     #[test]
