@@ -37,7 +37,8 @@ use lightcraft_raw::{
 /// 10: a photo no look fits keeps its camera profile's colour instead of the neutral fallback.
 /// 11: a camera profile's pooled tone curve continues a photo's own past what its JPEG showed.
 /// 12: only a look with the profile's colour continues along its pooled tone curve.
-pub const LOOK_VERSION: u32 = 12;
+/// 13: continuing a photo's curve keeps it as it was where its JPEG taught it (`thinned_knots`).
+pub const LOOK_VERSION: u32 = 13;
 
 #[derive(Clone, Debug)]
 pub(crate) struct CameraLook {
@@ -916,14 +917,25 @@ fn extend_tone(photo: &CameraTone, pooled: &CameraTone) -> CameraTone {
     if !(span.is_finite() && span > 0.2) {
         return *photo;
     }
-    let extra = ((span * EXTEND_KNOTS_PER_EV).round() as usize).clamp(2, 16);
+    // the photo's own knots, the ones its curve needs least dropped to make room: as many extension knots as keep the
+    // curve within `THIN_TOLERANCE` where the JPEG taught it, at least 2, else the photo keeps its curve as it is
+    let Some((extra, own)) =
+        (2..=((span * EXTEND_KNOTS_PER_EV).round() as usize).clamp(2, 16)).rev().find_map(|extra| thinned_knots(own, 32 - extra).map(|k| (extra, k)))
+    else {
+        if lightcraft_pipeline::profiling() {
+            eprintln!("[profile] camera look: the photo's curve can't make room for the pooled one, kept as fitted");
+        }
+        return *photo;
+    };
+    if lightcraft_pipeline::profiling() {
+        eprintln!("[profile] camera look: pooled tone curve joined with {extra} knots past the photo's");
+    }
     let at_end = pooled.apply(end[0]);
     let ratio = if at_end > 0.0 && end[1] > 0.0 { end[1] / at_end } else { 1.0 };
     let mut knots = [[0.0f32; 2]; 32];
-    // the photo's own knots, evenly thinned to make room, always keeping its first and last
     let kept = 32 - extra;
-    for (i, knot) in knots.iter_mut().take(kept).enumerate() {
-        *knot = own[i * 31 / (kept - 1)];
+    for (knot, own) in knots.iter_mut().zip(&own) {
+        *knot = *own;
     }
     for k in 1..=extra {
         let ev = span * k as f32 / extra as f32;
@@ -939,6 +951,37 @@ fn extend_tone(photo: &CameraTone, pooled: &CameraTone) -> CameraTone {
         floor = knot[1];
     }
     CameraTone::new(knots).and_then(|tone| tone.with_chroma(*photo.chroma())).unwrap_or(*photo)
+}
+
+/// Largest change, in gamma-encoded display values (1/2.2), that thinning a photo's curve for [`extend_tone`] may make
+/// where its JPEG taught it: one 8-bit code.
+const THIN_TOLERANCE: f32 = 1.0 / 255.0;
+
+/// `knots` thinned to `keep` (first and last kept), dropping one at a time the knot whose removal changes the curve
+/// least (`CameraTone::apply` interpolates linearly, so the change peaks at a dropped knot); `None` when that change
+/// would exceed [`THIN_TOLERANCE`].
+fn thinned_knots(knots: &[[f32; 2]; 32], keep: usize) -> Option<Vec<[f32; 2]>> {
+    let encoded = |v: f32| v.max(0.0).powf(1.0 / 2.2);
+    // the change from leaving out every knot strictly between kept indices `a` and `b`
+    let gap = |a: usize, b: usize| {
+        let ([x0, y0], [x1, y1]) = (knots[a], knots[b]);
+        (a + 1..b)
+            .map(|i| {
+                let [x, y] = knots[i];
+                let t = if x1 > x0 { (x - x0) / (x1 - x0) } else { 0.0 };
+                (encoded(y0 + t * (y1 - y0)) - encoded(y)).abs()
+            })
+            .fold(0.0f32, f32::max)
+    };
+    let mut kept: Vec<usize> = (0..knots.len()).collect();
+    while kept.len() > keep.max(2) {
+        let (i, change) = (1..kept.len() - 1).map(|i| (i, gap(kept[i - 1], kept[i + 1]))).min_by(|a, b| a.1.total_cmp(&b.1))?;
+        if change > THIN_TOLERANCE {
+            return None;
+        }
+        kept.remove(i);
+    }
+    Some(kept.into_iter().map(|i| knots[i]).collect())
 }
 
 /// A camera profile's colour model (matrix from white-balanced camera RGB, hue/saturation table)
@@ -4155,6 +4198,37 @@ mod tests {
         // a photo that already reaches as far keeps its curve
         let bright = sampled(|x| 0.9 * camera_curve(x), 0.0005, 0.85);
         assert_eq!(extend_tone(&bright, &pooled), bright);
+    }
+
+    #[test]
+    fn extending_a_photos_curve_keeps_it_where_its_jpeg_taught_it() {
+        let pooled = sampled(camera_curve, 0.0005, 0.9);
+        let encoded = |v: f32| v.max(0.0).powf(1.0 / 2.2);
+        // a smooth dark curve, and one with a sharp toe (flat, then a steep rise over two knots)
+        let smooth = sampled(|x| 0.9 * camera_curve(x), 0.0005, 0.02);
+        let toe = CameraTone::new(std::array::from_fn(|i| {
+            let x = 0.0005 * 40f32.powf(i as f32 / 31.0);
+            [
+                x,
+                if i < 9 {
+                    0.001 + 0.0001 * i as f32
+                } else if i < 11 {
+                    0.004 + 0.012 * (i - 8) as f32
+                } else {
+                    0.03 + 0.004 * (i - 10) as f32
+                },
+            ]
+        }))
+        .unwrap();
+        for photo in [smooth, toe] {
+            let tone = extend_tone(&photo, &pooled);
+            for [x, _] in photo.knots() {
+                let change = (encoded(tone.apply(*x)) - encoded(photo.apply(*x))).abs();
+                assert!(change <= THIN_TOLERANCE + 1e-5, "{x}: {} vs {} ({change})", tone.apply(*x), photo.apply(*x));
+            }
+        }
+        // the smooth one still goes on along the pooled curve
+        assert!((extend_tone(&smooth, &pooled).apply(0.3) - pooled.apply(0.3)).abs() < 0.01);
     }
 
     #[test]
