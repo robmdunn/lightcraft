@@ -840,7 +840,7 @@ fn align_cr3_framing(sensor: Rgb32f, clipped: Rgb32f, reference: &Rgb32f) -> (Rg
 /// colour matrices, other files or unusable previews.
 /// What one photo contributes to a camera profile ([`profile_samples`]), in white-balanced camera RGB.
 pub(crate) struct ProfileSamples {
-    /// Colour pairs: camera RGB → the camera JPEG's linear Rec.2020.
+    /// Colour pairs: camera RGB → the camera JPEG's linear Rec.2020 (empty when the photo has too little colour).
     pub colour: Vec<([f64; 3], [f64; 3])>,
     /// Tone samples: camera RGB → the camera JPEG's luminance, dark pixels included (as the photo's own toe fit takes
     /// them, [`fit_tone_with_shadows`]).
@@ -857,15 +857,29 @@ pub(crate) fn profile_samples(raw: &RawImage, bytes: &[u8], lens: Option<&LensGe
     let to_camera = transform.matrix.inverse()?;
     // clipped sensor pixels don't record the scene's colour (see `fit_look`)
     let sensor = without_clipped(&sensor, &clipped).unwrap_or(sensor);
-    let (pairs, _) = collect_pairs(&sensor, &reference, 0.05, None, false)?;
-    let tone = sensor
+    samples_from_proxies(&sensor, &reference, &to_camera)
+}
+
+/// [`profile_samples`] from a raw's sensor proxy (clipped pixels left out) and its camera JPEG's, `to_camera` taking the
+/// sensor proxy back to white-balanced camera RGB.
+fn samples_from_proxies(sensor: &Rgb32f, reference: &Rgb32f, to_camera: &Mat3) -> Option<ProfileSamples> {
+    // a black-and-white JPEG went through a monochrome picture style's own mix and curve: nothing for the profile
+    if monochrome(reference) {
+        return None;
+    }
+    // a dark or colourless photo has no colour pairs but still shows the shadows the pooled curve needs
+    let colour = collect_pairs(sensor, reference, 0.05, None, false).map_or_else(Vec::new, |(pairs, _)| pairs);
+    let tone: Vec<_> = sensor
         .data
         .iter()
         .zip(&reference.data)
         .filter(|(input, output)| tone_sample(**input, **output))
         .map(|(input, output)| (to_camera.apply(input.map(f64::from)), f64::from(luminance_2020(*output))))
         .collect();
-    Some(ProfileSamples { colour: pairs.into_iter().map(|(x, y)| (to_camera.apply(x), y)).collect(), tone })
+    if colour.is_empty() && tone.is_empty() {
+        return None;
+    }
+    Some(ProfileSamples { colour: colour.into_iter().map(|(x, y)| (to_camera.apply(x), y)).collect(), tone })
 }
 
 /// Whether a sensor/JPEG proxy pixel pair can teach the tone curve: every channel above the sensor floor, the JPEG
@@ -4158,6 +4172,28 @@ mod tests {
             assert!((tone.apply(x) - camera_curve(x)).abs() < 0.01 + 0.03 * camera_curve(x), "{x}: {} vs {}", tone.apply(x), camera_curve(x));
         }
         assert!(fit_profile_tone(&samples[..64], &matrix).is_none(), "too few samples");
+    }
+
+    #[test]
+    fn a_photo_too_dark_for_colour_pairs_still_gives_the_pooled_curve_its_shadows() {
+        // a scene of saturated colours, its camera JPEG a linear map of the sensor; `level` sets the exposure
+        let colours = [[0.9, 0.2, 0.1], [0.1, 0.8, 0.2], [0.2, 0.3, 0.9], [0.8, 0.7, 0.1], [0.6, 0.2, 0.7], [0.5, 0.5, 0.5]];
+        let scene = |level: f32| {
+            let sensor = Rgb32f::from_fn(64, 64, |x, y| colours[(x / 8 + y / 8) % colours.len()].map(|v| v * level * (1.0 + (x % 8) as f32 / 16.0)));
+            let reference = Rgb32f::from_fn(64, 64, |x, y| sensor.data[y * 64 + x].map(|v| v * 0.8));
+            (sensor, reference)
+        };
+        let (sensor, reference) = scene(0.3);
+        let bright = samples_from_proxies(&sensor, &reference, &Mat3::IDENTITY).unwrap();
+        assert!(!bright.colour.is_empty() && !bright.tone.is_empty());
+        // every JPEG channel under the colour-pair floor, its luminance still above the tone floor
+        let (sensor, reference) = scene(0.003);
+        assert!(reference.data.iter().all(|p| p.iter().all(|v| *v < 0.004)));
+        let dark = samples_from_proxies(&sensor, &reference, &Mat3::IDENTITY).expect("tone samples from a dark photo");
+        assert!(dark.colour.is_empty() && dark.tone.len() > 1000, "{} colour pairs, {} tone samples", dark.colour.len(), dark.tone.len());
+        // a black-and-white camera JPEG gives nothing
+        let grey = Rgb32f::from_fn(64, 64, |x, y| [luminance_2020(reference.data[y * 64 + x]) * 100.0; 3]);
+        assert!(samples_from_proxies(&scene(0.3).0, &grey, &Mat3::IDENTITY).is_none());
     }
 
     #[test]

@@ -203,9 +203,20 @@ pub struct Pool {
 
 #[derive(Default)]
 struct Model {
+    /// Photos that gave colour pairs (the colour fit's photo count).
     files: usize,
+    /// Photos that gave tone samples only (too dark or colourless for colour pairs).
+    tone_files: usize,
     pairs: Vec<([f64; 3], [f64; 3])>,
     tone: Vec<([f64; 3], f64)>,
+}
+
+/// What [`Pool::add`] took from one raw file.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Added {
+    pub model: String,
+    /// Whether it gave colour pairs; `false`: tone samples only, not counted toward a profile's photos.
+    pub colour: bool,
 }
 
 /// Most colour pairs (and, separately, tone samples) kept per photo, so a few busy photos can't dominate a profile.
@@ -218,9 +229,11 @@ fn thinned<T>(items: Vec<T>) -> impl Iterator<Item = T> {
 }
 
 impl Pool {
-    /// Add one raw file's colour pairs. `Ok(None)` when the file can't contribute (not an ARW,
-    /// NEF or RAF without colour matrices, no usable camera JPEG, too little colour).
-    pub fn add(&mut self, bytes: &[u8]) -> Result<Option<String>, String> {
+    /// Add one raw file's colour pairs and tone samples. A photo too dark or colourless for colour pairs still gives
+    /// its tone samples (the shadows the pooled curve needs) without counting toward the profile's photos. `Ok(None)`
+    /// when the file can't contribute (not an ARW, NEF or RAF without colour matrices, no usable or a black-and-white
+    /// camera JPEG).
+    pub fn add(&mut self, bytes: &[u8]) -> Result<Option<Added>, String> {
         let mut raw = lightcraft_raw::decode(bytes).map_err(|e| e.to_string())?;
         // colour only: geometric lens corrections would stop the sensor proxy from binning (the pairs still follow
         // the warp the camera applied to its JPEG)
@@ -229,10 +242,15 @@ impl Pool {
         let Some(model) = raw.metadata.model.as_deref().map(str::trim).filter(|m| !m.is_empty()) else { return Ok(None) };
         let Some(samples) = crate::camera_preview::profile_samples(&raw, bytes, lens.as_ref()) else { return Ok(None) };
         let entry = self.models.entry(model.to_owned()).or_default();
-        entry.files += 1;
-        entry.pairs.extend(thinned(samples.colour));
+        let colour = !samples.colour.is_empty();
+        if colour {
+            entry.files += 1;
+            entry.pairs.extend(thinned(samples.colour));
+        } else {
+            entry.tone_files += 1;
+        }
         entry.tone.extend(thinned(samples.tone));
-        Ok(Some(model.to_owned()))
+        Ok(Some(Added { model: model.to_owned(), colour }))
     }
 
     /// Fit a profile per model with at least `min_files` photos.
@@ -255,6 +273,7 @@ impl Pool {
         for (model, m) in other.models {
             let entry = self.models.entry(model).or_default();
             entry.files += m.files;
+            entry.tone_files += m.tone_files;
             entry.pairs.extend(m.pairs);
             entry.tone.extend(m.tone);
         }
