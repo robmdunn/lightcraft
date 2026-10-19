@@ -1849,8 +1849,7 @@ pub(crate) mod tests {
         lightcraft_color::Mat3([[0.42, 0.548, 0.04], [0.246, 0.728, 0.033], [-0.247, 0.679, 0.447]])
     }
 
-    /// A fitted camera look applied in lanes, on rows that aren't a whole number of them, gives the bits of the
-    /// pixel-by-pixel path, awkward pixels (black, negative, huge, NaN, infinite) included.
+    /// Decoding passes finite values through, negative ones included, and zeroes NaN and infinities.
     #[test]
     fn decoding_keeps_negative_channels_and_zeroes_non_finite_ones() {
         assert_eq!(finite([0.6, 0.05, -0.04]), [0.6, 0.05, -0.04]);
@@ -1884,6 +1883,8 @@ pub(crate) mod tests {
         assert!(lo > 0.0 && hi / lo < 1.2, "mean {mean:?} is tinted");
     }
 
+    /// A fitted camera look applied in lanes, on rows that aren't a whole number of them, gives the bits of the
+    /// pixel-by-pixel path, awkward pixels (black, negative, huge, NaN, infinite) included.
     #[test]
     fn camera_look_in_lanes_matches_pixel_by_pixel() {
         let data = (0..72 * 5 * 5).map(|i| [((i * 37) % 61) as f32 - 30.0, 0.6 + ((i * 11) % 13) as f32 / 13.0, 1.0]).collect();
