@@ -840,8 +840,12 @@ fn negative_channels_render_finite_everywhere() {
     let finite = |s: &DevelopSettings, depth: OutputDepth, what: &str| {
         let r = render(&src, &info, s, &RenderRequest { depth, ..RenderRequest::fit(48, 48) });
         assert!(r.histogram.total > 0, "{what}");
-        if let Some(DeepSamples::F32(v)) = r.deep.map(|d| d.samples) {
-            assert!(v.iter().all(|v| v.is_finite()), "{what} {depth:?}: non-finite output");
+        match (depth, r.deep.map(|d| d.samples)) {
+            (OutputDepth::U8, None) | (OutputDepth::U16, Some(DeepSamples::U16(_))) => {}
+            (OutputDepth::F32Linear | OutputDepth::F32Hdr, Some(DeepSamples::F32(v))) => {
+                assert!(v.iter().all(|v| v.is_finite()), "{what} {depth:?}: non-finite output");
+            }
+            _ => panic!("{what} {depth:?}: missing or wrong deep samples"),
         }
     };
     let mut pushed = DevelopSettings::default();
