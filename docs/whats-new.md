@@ -1,5 +1,15 @@
 # What's new in LightCraft
 
+## 2026-10-26
+
+### Pushed shadows of raws no longer turn magenta
+- Raw decoding no longer clips each colour channel at zero. Near black, sensor noise through the camera's colour
+  matrix has negative values, and clipping kept only the positive half of each channel's noise, so dark areas
+  pushed up came out purple or magenta, most visibly with saturating camera profiles. In the fitted view, thumbnails
+  and other views smaller than the photo, where neighbouring pixels are averaged first, pushed shadows now keep their
+  real colour (a lens-cap frame pushed 4 EV rendered magenta; it is now black), and cached thumbnails are rendered
+  again. At 100% and in full-size exports white balance still clips each channel before noise reduction (#840).
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
@@ -284,12 +294,6 @@
   `lightcraft-cli calibrate` from about 300 photos per camera, with the camera's tone curve. Colours that one photo
   shows only a little of, and shadows you push up, keep the camera's colour instead of whatever that photo's own fit
   learned.
-
-### Pushed shadows of raws no longer turn magenta
-- Raw decoding no longer clips each colour channel at zero. Near black, sensor noise through the camera's colour
-  matrix has negative values, and clipping kept only the positive half of each channel's noise, so dark areas
-  pushed up came out purple or magenta (a lens-cap frame pushed 4 EV rendered magenta; it is now black). Shadows
-  pushed with Exposure or Shadows keep their real colour, most visibly with saturating camera profiles.
 
 ### Dark raws keep their camera's colour and tone
 - A raw whose camera JPEG is too dark (or too colourless) to fit a look to no longer drops its camera profile's
