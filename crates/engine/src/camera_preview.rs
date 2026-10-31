@@ -80,12 +80,17 @@ use tone::{HighlightCheck, ToneFit, fit_tone, fit_tone_conditional, highlights};
 /// a tone-only fallback for near-black scenes with too few colour pairs (#1587); DNG tone fitting uses a
 /// lens-corrected proxy when the file carries lens opcodes; validated A7CR distortion, including the lens data
 /// stored with each smart preview.
-/// 13: a photo no look fits keeps its camera profile's colour instead of the neutral fallback.
-/// 14: a camera profile's pooled tone curve continues a photo's own past what its JPEG showed.
-/// 15: only a look with the profile's colour continues along its pooled tone curve.
-/// 16: continuing a photo's curve keeps it as it was where its JPEG taught it (`thinned_knots`).
-/// 17: the bundled NIKON D780, D750 and D90 profiles.
-pub const LOOK_VERSION: u32 = 17;
+/// 13: tone curves no steeper than a log-log slope of 4 between knots (#1904).
+/// 13: the Canon CR3/CR2 camera JPEG read in the colour space of the Canon maker note (#2654).
+/// 13: the sensor proxy of every per-file fit gets the embedded vignetting correction the render applies (Fujifilm
+/// RAF; other makes with a lens database), so the render no longer applies it twice, at the position a lens warp samples;
+/// the warped candidate's alignment leaves out the pixels outside the sensor instead of reading them as black.
+/// 14: a photo no look fits keeps its camera profile's colour instead of the neutral fallback.
+/// 15: a camera profile's pooled tone curve continues a photo's own past what its JPEG showed.
+/// 16: only a look with the profile's colour continues along its pooled tone curve.
+/// 17: continuing a photo's curve keeps it as it was where its JPEG taught it (`thinned_knots`).
+/// 18: the bundled NIKON D780, D750 and D90 profiles.
+pub const LOOK_VERSION: u32 = 18;
 
 #[derive(Clone, Debug)]
 pub(crate) struct CameraLook {
