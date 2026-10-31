@@ -4,7 +4,7 @@ use super::look_fit::{FIT_PREVIEW_MAX_PIXELS, SENSOR_CLIP, clip_mask, without_cl
 use super::mono::monochrome;
 use super::pairs::{collect_pairs, fit_matrix, luma};
 use super::tone::fit_tone;
-use super::*;
+use super::{CameraTone, CameraTransform, Filter, HsvTable, Mat3, RawFormat, RawImage, Rgb32f, fit, luminance_2020, resize};
 
 /// The embedded preview's long edge must be at least this share of the raw's (and 384 px): a DNG whose preview is a
 /// small thumbnail is not fitted. The fit itself runs on a proxy of at most 384 px, so the 1024 px preview
